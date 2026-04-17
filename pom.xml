@@ -170,6 +170,19 @@
         </dependency>
 
 
+        <!-- Spring Security core: 提供 SecurityContext 和 SecurityContextHolder，用于在异步线程中传递用户信息 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+        </dependency>
+
+        <!-- Guava: 提供 ThreadFactoryBuilder，便于构造可命名线程 -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
+        </dependency>
+
     </dependencies>
 
     <build>
