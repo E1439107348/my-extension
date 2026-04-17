@@ -88,13 +88,13 @@ public class ThreadPoolUtils {
      * @param threadNamePrefix 线程名前缀
      * @return ContextAwareThreadPoolExecutor
      */
-    public static ContextAwareThreadPoolExecutor contextAwarePool(int corePoolSize,
-                                                                     int maximumPoolSize,
-                                                                     long keepAliveSeconds,
-                                                                     int queueCapacity,
-                                                                     String threadNamePrefix) {
+    public static ContextAwaredThreadPoolExecutor contextAwarePool(int corePoolSize,
+                                                                   int maximumPoolSize,
+                                                                   long keepAliveSeconds,
+                                                                   int queueCapacity,
+                                                                   String threadNamePrefix) {
         BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(Math.max(1, queueCapacity));
-        ContextAwareThreadPoolExecutor pool = new ContextAwareThreadPoolExecutor(
+        ContextAwaredThreadPoolExecutor pool = new ContextAwaredThreadPoolExecutor(
                 corePoolSize,
                 maximumPoolSize,
                 keepAliveSeconds,
@@ -141,14 +141,14 @@ public class ThreadPoolUtils {
      * @param handler 拒绝策略
      * @return ContextAwareThreadPoolExecutor 已包装的线程池实例
      */
-    public static ContextAwareThreadPoolExecutor contextAwarePool(int corePoolSize,
-                                                                     int maximumPoolSize,
-                                                                     long keepAliveSeconds,
-                                                                     TimeUnit unit,
-                                                                     BlockingQueue<Runnable> workQueue,
-                                                                     ThreadFactory threadFactory,
-                                                                     java.util.concurrent.RejectedExecutionHandler handler) {
-        ContextAwareThreadPoolExecutor pool = new ContextAwareThreadPoolExecutor(
+    public static ContextAwaredThreadPoolExecutor contextAwarePool(int corePoolSize,
+                                                                   int maximumPoolSize,
+                                                                   long keepAliveSeconds,
+                                                                   TimeUnit unit,
+                                                                   BlockingQueue<Runnable> workQueue,
+                                                                   ThreadFactory threadFactory,
+                                                                   java.util.concurrent.RejectedExecutionHandler handler) {
+        ContextAwaredThreadPoolExecutor pool = new ContextAwaredThreadPoolExecutor(
                 corePoolSize,
                 maximumPoolSize,
                 keepAliveSeconds,
@@ -165,7 +165,7 @@ public class ThreadPoolUtils {
      * @param pool 可为空
      * @param awaitSeconds 等待秒数
      */
-    public static void shutdownGracefully(ContextAwareThreadPoolExecutor pool, long awaitSeconds) {
+    public static void shutdownGracefully(ContextAwaredThreadPoolExecutor pool, long awaitSeconds) {
         if (pool == null) {return;}
         pool.shutdownGracefully(awaitSeconds);
     }
