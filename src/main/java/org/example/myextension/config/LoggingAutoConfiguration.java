@@ -54,13 +54,13 @@ public class LoggingAutoConfiguration {
     /**
      * Spring Boot 的 logging.file.name，作为次优先级。
      */
-    @Value("${myextension.logging.file.name:#{null}}")
+    @Value("${myextension.logging.files.name:#{null}}")
     private String loggingFileName;
 
     /**
      * Spring Boot 的 logging.file.path，仅指定目录时使用，最终文件名为 {path}/application.log。
      */
-    @Value("${myextension.logging.file.path:#{null}}")
+    @Value("${myextension.logging.files.path:#{null}}")
     private String loggingFilePath;
 
     @PostConstruct
@@ -164,6 +164,16 @@ public class LoggingAutoConfiguration {
                 logger.info("my-extension：已添加 LIB_ASYNC appender，日志写入 {}", targetFile);
             } catch (Exception ex) {
                 logger.error("my-extension：添加文件 appender 失败 {}: {}", targetFile, ex.getMessage(), ex);
+            }
+
+            // 注册 TurboFilter：当 MDC 中缺失 TraceId 时自动注入，保证引用项目的日志也能获得 TraceId
+            try {
+                TraceIdTurboFilter filter = new TraceIdTurboFilter();
+                filter.start();
+                ctx.addTurboFilter(filter);
+                logger.info("my-extension：已注册 TraceIdTurboFilter，用于在缺失时注入 TraceId 到 MDC");
+            } catch (Exception ex) {
+                logger.warn("my-extension：注册 TraceIdTurboFilter 失败：{}", ex.getMessage());
             }
 
         } catch (Throwable ex) {
