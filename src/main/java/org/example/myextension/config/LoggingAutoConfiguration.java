@@ -10,6 +10,7 @@ import ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy;
 import ch.qos.logback.core.util.FileSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,6 +18,7 @@ import javax.annotation.PostConstruct;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
 
 /**
  * my-extension 自动日志配置（在运行时为 Logback 添加控制台与文件 appender）
@@ -63,7 +65,18 @@ public class LoggingAutoConfiguration {
 
     @PostConstruct
     public void configureLogging() {
+        final String TRACE_KEY = "TraceId";
+        String originalTrace = null;
+        boolean injected = false;
         try {
+            // 确保在初始化日志组件期间，MDC 中存在 TraceId，以便所有初始化日志记录都带上 TraceId
+            originalTrace = MDC.get(TRACE_KEY);
+            if (originalTrace == null || originalTrace.trim().isEmpty()) {
+                String gen = UUID.randomUUID().toString().replace("-", "");
+                MDC.put(TRACE_KEY, gen);
+                injected = true;
+            }
+
             LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
             ch.qos.logback.classic.Logger root = ctx.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
 
@@ -155,6 +168,17 @@ public class LoggingAutoConfiguration {
 
         } catch (Throwable ex) {
             logger.error("my-extension：初始化日志自动配置失败：{}", ex.getMessage(), ex);
+        } finally {
+            // 恢复原始 TraceId
+            try {
+                if (injected) {
+                    MDC.remove(TRACE_KEY);
+                } else if (originalTrace != null) {
+                    MDC.put(TRACE_KEY, originalTrace);
+                }
+            } catch (Exception ignore) {
+                // ignore
+            }
         }
     }
 

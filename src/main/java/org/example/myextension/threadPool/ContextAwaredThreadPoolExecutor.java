@@ -6,9 +6,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -17,7 +15,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * 特性：
  *  - 在提交任务时捕获提交线程的 MDC、SecurityContext、RequestAttributes，并在异步线程中恢复；
- *  - 如果提交线程中未包含 TraceId（MDC key = "TraceId"），自动为该任务生成一个 TraceId，保证日志链路不为空；
  *  - 任务执行结束后恢复异步线程原有的上下文，避免污染线程池中的后续任务环境；
  *  - 覆盖 execute/submit 等方法，保证主流提交方式均被包装；
  *  - 提供 shutdownGracefully 方法用于优雅关闭线程池。
@@ -28,8 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  *  - 在高并发场景，优先考虑合适的拒绝策略并结合限流策略。
  */
 public class ContextAwaredThreadPoolExecutor extends ThreadPoolExecutor {
-
-    private static final String TRACE_KEY = "TraceId";
 
     public ContextAwaredThreadPoolExecutor(int corePoolSize,
                                            int maximumPoolSize,
@@ -62,16 +57,9 @@ public class ContextAwaredThreadPoolExecutor extends ThreadPoolExecutor {
 
     private Runnable wrap(Runnable task) {
         if (task == null) {return null;}
-        final Map<String, String> capturedMdc = MDC.getCopyOfContextMap();
+        final Map<String, String> mdc = MDC.getCopyOfContextMap();
         final SecurityContext securityContext = SecurityContextHolder.getContext() == null ? null : SecurityContextHolder.getContext();
         final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
-
-        // prepare MDC to set in worker thread; ensure TraceId exists
-        final Map<String, String> mdcToSet = new HashMap<>();
-        if (capturedMdc != null) mdcToSet.putAll(capturedMdc);
-        if (mdcToSet.get(TRACE_KEY) == null || mdcToSet.get(TRACE_KEY).trim().isEmpty()) {
-            mdcToSet.put(TRACE_KEY, UUID.randomUUID().toString().replace("-", ""));
-        }
 
         return () -> {
             Map<String, String> originalMdc = MDC.getCopyOfContextMap();
@@ -79,8 +67,8 @@ public class ContextAwaredThreadPoolExecutor extends ThreadPoolExecutor {
             RequestAttributes originalRequest = RequestContextHolder.getRequestAttributes();
 
             try {
-                if (mdcToSet != null) {
-                    MDC.setContextMap(mdcToSet);
+                if (mdc != null) {
+                    MDC.setContextMap(mdc);
                 } else {
                     MDC.clear();
                 }
@@ -120,15 +108,9 @@ public class ContextAwaredThreadPoolExecutor extends ThreadPoolExecutor {
 
     private <T> Callable<T> wrap(Callable<T> task) {
         if (task == null) {return null;}
-        final Map<String, String> capturedMdc = MDC.getCopyOfContextMap();
+        final Map<String, String> mdc = MDC.getCopyOfContextMap();
         final SecurityContext securityContext = SecurityContextHolder.getContext() == null ? null : SecurityContextHolder.getContext();
         final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
-
-        final Map<String, String> mdcToSet = new HashMap<>();
-        if (capturedMdc != null) mdcToSet.putAll(capturedMdc);
-        if (mdcToSet.get(TRACE_KEY) == null || mdcToSet.get(TRACE_KEY).trim().isEmpty()) {
-            mdcToSet.put(TRACE_KEY, UUID.randomUUID().toString().replace("-", ""));
-        }
 
         return () -> {
             Map<String, String> originalMdc = MDC.getCopyOfContextMap();
@@ -136,8 +118,8 @@ public class ContextAwaredThreadPoolExecutor extends ThreadPoolExecutor {
             RequestAttributes originalRequest = RequestContextHolder.getRequestAttributes();
 
             try {
-                if (mdcToSet != null) {
-                    MDC.setContextMap(mdcToSet);
+                if (mdc != null) {
+                    MDC.setContextMap(mdc);
                 } else {
                     MDC.clear();
                 }
