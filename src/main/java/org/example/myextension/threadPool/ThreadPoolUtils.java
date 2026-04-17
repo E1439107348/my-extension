@@ -6,7 +6,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ThreadPool 工具类 — 提供带上下文传播能力的线程池（ContextAwareThreadPoolExecutor）。
+ * ThreadPool 工具类 — 提供带上下文传播能力的线程池（ContextAwaredThreadPoolExecutor）。
  *
  * 功能亮点：
  *  - 自动传递 MDC（例如 traceId）到异步线程，保证日志链路不丢失；
@@ -56,13 +56,13 @@ import java.util.concurrent.TimeUnit;
  * // @Configuration
  * // public class AsyncConfig {
  * //     @Bean(destroyMethod = "shutdownGracefully")
- * //     public ContextAwareThreadPoolExecutor taskExecutor() {
- * //         ContextAwareThreadPoolExecutor pool = ThreadPoolUtils.contextAwarePool(8, 16, 120, 15, "refresh-send-status");
+ * //     public ContextAwaredThreadPoolExecutor taskExecutor() {
+ * //         ContextAwaredThreadPoolExecutor pool = ThreadPoolUtils.contextAwarePool(8, 16, 120, 15, "refresh-send-status");
  * //         pool.allowCoreThreadTimeOut(true);
  * //         return pool;
  * //     }
  * //     @Bean
- * //     public org.springframework.core.task.TaskExecutor springAsyncExecutor(ContextAwareThreadPoolExecutor pool) {
+ * //     public org.springframework.core.task.TaskExecutor springAsyncExecutor(ContextAwaredThreadPoolExecutor pool) {
  * //         return new org.springframework.scheduling.concurrent.ConcurrentTaskExecutor(pool);
  * //     }
  * // }
@@ -75,18 +75,28 @@ import java.util.concurrent.TimeUnit;
 打印线程池中任务日志时，请确保已设置 TraceId，否则日志中将缺少 TraceId。
  TraceUtil.setTraceId("T123");
    pool.submit(() -> log.info("task traceId={}", TraceUtil.getTraceId()));
+
+ --------------------------------------------------------------------------------
+  日志（TraceId）与日志文件路径配置说明：
+  - 本模块提供了一个 sample logback-spring.xml（位于 resources/），包含日志 pattern 中的 TraceId 输出（%X{TraceId}）。
+  - 推荐做法：将该 logback-spring.xml 拷贝到应用项目的 resources/ 下并按需修改；应用会优先使用应用级的 logback-spring.xml。
+  - 配置日志文件路径：可在应用的 application.properties/application.yml 中设置：
+      logging.file.name=/var/logs/myapp/app.log    # 指定完整日志文件名（优先）
+      logging.file.path=/var/logs/myapp            # 指定日志目录（当未指定 name 时使用）
+  - 若不复制配置文件到应用：当应用没有自定义 logback 配置且类路径中可见时，库内的 sample 可能被采用，但此行为不可靠，不建议依赖。
+ --------------------------------------------------------------------------------
  * </pre>
  */
 public class ThreadPoolUtils {
 
     /**
-     * 创建一个带上下文传递能力的固定大小线程池（ContextAwareThreadPoolExecutor）。
+     * 创建一个带上下文传递能力的固定大小线程池（ContextAwaredThreadPoolExecutor）。
      * @param corePoolSize 核心线程数
      * @param maximumPoolSize 最大线程数
      * @param keepAliveSeconds 非核心线程空闲存活时间（秒）
      * @param queueCapacity 队列容量
      * @param threadNamePrefix 线程名前缀
-     * @return ContextAwareThreadPoolExecutor
+     * @return ContextAwaredThreadPoolExecutor
      */
     public static ContextAwaredThreadPoolExecutor contextAwarePool(int corePoolSize,
                                                                    int maximumPoolSize,
@@ -139,7 +149,7 @@ public class ThreadPoolUtils {
      * @param workQueue 任务队列
      * @param threadFactory 线程工厂
      * @param handler 拒绝策略
-     * @return ContextAwareThreadPoolExecutor 已包装的线程池实例
+     * @return ContextAwaredThreadPoolExecutor 已包装的线程池实例
      */
     public static ContextAwaredThreadPoolExecutor contextAwarePool(int corePoolSize,
                                                                    int maximumPoolSize,

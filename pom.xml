@@ -183,6 +183,13 @@
             <version>31.1-jre</version>
         </dependency>
 
+        <!-- Logback classic: 用于在运行时通过代码创建/配置 appender，确保库能够在没有应用自定义 logback 的情况下添加文件 appender -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.11</version>
+        </dependency>
+
     </dependencies>
 
     <build>
