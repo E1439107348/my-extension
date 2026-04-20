@@ -21,23 +21,51 @@ import java.nio.file.Paths;
 import java.util.UUID;
 
 /**
- * my-extension 自动日志配置（在运行时为 Logback 添加控制台与文件 appender）
+ * my-extension 自动日志配置（在运行时为 Logback 增强控制台与文件输出）
  *
- * 目标：移除库中的 logback-spring.xml，改为在运行时通过代码为引用项目提供一致的日志输出行为，
- * 包括：控制台输出 pattern（包含 TraceId）、可选的文件输出（按属性配置）。
+ * Purpose
+ *   在运行时以编程方式为引用项目补充日志输出能力，确保日志记录包含统一的 TraceId 并支持可选的文件输出。
  *
- * 总体原则：尽量不覆盖引用方已有配置；在引用方未配置文件输出或未提供名为 LIB_ASYNC/ LIB_CONSOLE 的 appender 时，
- * 本配置会按需补充控制台与文件 appender，保证 TraceId 能被输出并支持通过属性指定文件路径。
+ * Design goals
+ *   1) 不覆盖引用项目已有的自定义 Logback 配置；仅在缺失特定 appender（LIB_CONSOLE / LIB_ASYNC）时补充。
+ *   2) 保证日志链路完整：尽可能确保应用任何阶段（包括类初始化期间、主动 logger.info 调用）都有可用的 TraceId。
+ *   3) 控制台输出对人类友好：对日志级别进行颜色高亮，便于快速区分 INFO/WARN/ERROR；文件输出保持无颜色以利于长期存储和解析。
  *
- * 配置优先级（请在应用的 application.properties / application.yml 中设置）：
- *   1) myextension.logging.file = /var/logs/myapp/app.log   （优先）
- *   2) logging.file.name   = /var/logs/myapp/app.log
- *   3) logging.file.path   = /var/logs/myapp  （生成 application.log）
+ * Features
+ *   - 在 root logger 上按需添加命名的 ConsoleAppender（LIB_CONSOLE），默认 pattern 包含 TraceId（%X{TraceId}）。
+ *   - 按配置（myextension.logging.file / logging.file.name / logging.file.path）按需添加异步滚动文件写入（LIB_ROLLING + LIB_ASYNC），包含大小与历史保留策略。
+ *   - 早期注册 TraceIdTurboFilter（在创建 appenders 之前），确保在日志调用前若 MDC 中缺少 TraceId 时自动注入一个随机 TraceId，从而连带初始化阶段/主动日志调用也能输出 TraceId。
  *
- * 行为说明：
- *  - 当 root logger 上不存在名为 LIB_CONSOLE 的控制台 appender 时，会添加一个默认控制台 appender（包含 TraceId 的 pattern）；
- *  - 当任一 logging.file.* 属性配置存在，并且 root logger 上不存在名为 LIB_ASYNC 的 appender 时，会添加异步文件 appender（LIB_ASYNC），并将滚动策略、大小限制与保留策略应用到该 appender；
- *  - 所有创建/IO 操作异常会以 logger.warn/error 记录，不会阻塞应用启动。
+ * Configuration properties (优先级自上而下)
+ *   - myextension.logging.file     (最高优先级，完整文件路径，例如 /var/logs/myapp/app.log)
+ *   - logging.file.name            (spring-boot 标准属性)
+ *   - logging.file.path            (仅目录时，生成 {path}/application.log)
+ *
+ * Console coloring behavior
+ *   - 控制台 pattern 使用 Logback 的 %highlight(...) 对日志级别进行上色（仅 level 文字），例如：%highlight(%-5level)
+ *   - 文件 appender 与写入到磁盘的日志不包含 ANSI 颜色码，保证可被文本处理工具 / 收集系统正确消费。
+ *   - 颜色显示依赖终端对 ANSI 转义码的支持；若需要在 Windows 旧终端上支持，可集成 JAnsi（非本配置的默认行为）。
+ *
+ * TraceId guarantees & MDC handling
+ *   - 为了尽量保证引用项目的所有日志都携带 TraceId，库在初始化阶段会：
+ *       a) 尝试在 configureLogging 的早期为当前线程 MDC 写入一个临时 TraceId（仅在没有时）。
+ *       b) 早期注册 TraceIdTurboFilter，该 TurboFilter 在每次日志事件被评估时检查 MDC，若缺失则填充一个随机 TraceId（无短横线）。
+ *   - 该策略的权衡：TurboFilter 的填充会持久写入当前线程的 MDC，可能影响后续业务对 MDC 的预期值；若希望仅对单次日志事件临时注入而不持久写入，需要更复杂的事件层面实现。
+ *
+ * Usage notes
+ *   - 若引用方已有完整的 logback-spring.xml 配置且包含自定义的控制台/文件 appender（且命名为 LIB_CONSOLE / LIB_ASYNC），本配置不会覆盖。
+ *   - 若希望控制台不使用颜色或改变上色策略，可在应用中自定义 logback-spring.xml 或通过属性禁用本库的行为（当前未提供开关，可根据需要扩展）。
+ *
+ * Examples (application.properties)
+ *   # 优先指定完整文件
+ *   myextension.logging.file=/var/logs/myapp/app.log
+ *
+ *   # 或使用 spring-boot 标准
+ *   logging.file.path=/var/logs/myapp
+ *
+ * Caveats
+ *   - 早期在 MDC 中注入 TraceId 是一个可见的副作用；在严格要求 MDC 不被库层改变的场景中，需谨慎使用。
+ *   - 控制台颜色依赖环境；日志收集系统在采集控制台输出时若未剥离 ANSI 码，可能将颜色码一并收集至存储层。
  */
 @Configuration
 public class LoggingAutoConfiguration {
@@ -48,7 +76,7 @@ public class LoggingAutoConfiguration {
      * 自定义日志文件（完整路径），优先级最高，示例：
      *   myextension.logging.file=/var/logs/myapp/app.log
      */
-    @Value("${myextension.logging.file:#{null}}")
+    @Value("${myextension.logging.files.url:#{null}}")
     private String myextensionLogFile;
 
     /**
@@ -80,12 +108,23 @@ public class LoggingAutoConfiguration {
             LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
             ch.qos.logback.classic.Logger root = ctx.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
 
+            // 注册 TurboFilter：当 MDC 中缺失 TraceId 时自动注入，保证引用项目的日志也能获得 TraceId
+            try {
+                TraceIdTurboFilter earlyFilter = new TraceIdTurboFilter();
+                earlyFilter.start();
+                ctx.addTurboFilter(earlyFilter);
+                logger.debug("my-extension：已早期注册 TraceIdTurboFilter，用于在缺失时注入 TraceId 到 MDC");
+            } catch (Exception ex) {
+                logger.warn("my-extension：早期注册 TraceIdTurboFilter 失败：{}", ex.getMessage());
+            }
+
             // 1) 确保存在控制台 appender（LIB_CONSOLE），包含 TraceId 的输出 pattern
             if (root.getAppender("LIB_CONSOLE") == null) {
                 try {
                     PatternLayoutEncoder consoleEncoder = new PatternLayoutEncoder();
                     consoleEncoder.setContext(ctx);
-                    consoleEncoder.setPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [TraceId:%X{TraceId}] %logger{36} - %msg%n");
+                    // Use %highlight to enable colored level output on console
+                    consoleEncoder.setPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] [TraceId:%X{TraceId}] %logger{36} - %msg%n");
                     consoleEncoder.start();
 
                     ConsoleAppender<ILoggingEvent> console = new ConsoleAppender<>();
@@ -166,15 +205,8 @@ public class LoggingAutoConfiguration {
                 logger.error("my-extension：添加文件 appender 失败 {}: {}", targetFile, ex.getMessage(), ex);
             }
 
-            // 注册 TurboFilter：当 MDC 中缺失 TraceId 时自动注入，保证引用项目的日志也能获得 TraceId
-            try {
-                TraceIdTurboFilter filter = new TraceIdTurboFilter();
-                filter.start();
-                ctx.addTurboFilter(filter);
-                logger.info("my-extension：已注册 TraceIdTurboFilter，用于在缺失时注入 TraceId 到 MDC");
-            } catch (Exception ex) {
-                logger.warn("my-extension：注册 TraceIdTurboFilter 失败：{}", ex.getMessage());
-            }
+            // TraceIdTurboFilter 已在上文早期注册，故此处跳过重复注册以避免覆盖
+            logger.debug("my-extension：TraceIdTurboFilter 已注册，跳过重复注册");
 
         } catch (Throwable ex) {
             logger.error("my-extension：初始化日志自动配置失败：{}", ex.getMessage(), ex);
