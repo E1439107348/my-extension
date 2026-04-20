@@ -79,18 +79,6 @@ public class LoggingAutoConfiguration {
     @Value("${myextension.logging.files.url:#{null}}")
     private String myextensionLogFile;
 
-    /**
-     * Spring Boot 的 logging.file.name，作为次优先级。
-     */
-    @Value("${myextension.logging.files.name:#{null}}")
-    private String loggingFileName;
-
-    /**
-     * Spring Boot 的 logging.file.path，仅指定目录时使用，最终文件名为 {path}/application.log。
-     */
-    @Value("${myextension.logging.files.path:#{null}}")
-    private String loggingFilePath;
-
     @PostConstruct
     public void configureLogging() {
         final String TRACE_KEY = "TraceId";
@@ -268,10 +256,6 @@ public class LoggingAutoConfiguration {
 
     private String resolveTargetFile() {
         if (myextensionLogFile != null && !myextensionLogFile.trim().isEmpty()) return myextensionLogFile.trim();
-        if (loggingFileName != null && !loggingFileName.trim().isEmpty()) return loggingFileName.trim();
-        if (loggingFilePath != null && !loggingFilePath.trim().isEmpty()) {
-            return loggingFilePath.trim() + (loggingFilePath.endsWith("/") ? "" : "/") + "application.log";
-        }
         return null;
     }
 }
