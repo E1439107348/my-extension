@@ -118,8 +118,56 @@ public class LoggingAutoConfiguration {
                 logger.warn("my-extension：早期注册 TraceIdTurboFilter 失败：{}", ex.getMessage());
             }
 
-            // 1) 确保存在控制台 appender（LIB_CONSOLE），包含 TraceId 的输出 pattern
-            if (root.getAppender("LIB_CONSOLE") == null) {
+            // 1) 优先尝试更新引用项目已有的 ConsoleAppender，将 TraceId 注入其输出 pattern，避免产生重复日志
+            boolean consoleFound = false;
+            java.util.Iterator<ch.qos.logback.core.Appender<ILoggingEvent>> it = root.iteratorForAppenders();
+            while (it != null && it.hasNext()) {
+                ch.qos.logback.core.Appender<ILoggingEvent> app = it.next();
+                if (app instanceof ConsoleAppender) {
+                    consoleFound = true;
+                    try {
+                        ConsoleAppender<ILoggingEvent> existing = (ConsoleAppender<ILoggingEvent>) app;
+                        Object enc = existing.getEncoder();
+                        if (enc instanceof PatternLayoutEncoder) {
+                            PatternLayoutEncoder ple = (PatternLayoutEncoder) enc;
+                            String pattern = ple.getPattern();
+                            if (pattern == null) pattern = "";
+                            if (!pattern.contains("%X{TraceId}")) {
+                                // 在 %logger 出现位置前插入 TraceId 标记（若无 %logger，则追加在末尾）
+                                int idx = pattern.indexOf("%logger");
+                                String traceInsert = "[TraceId:%X{TraceId}] ";
+                                String newPattern;
+                                if (idx != -1) {
+                                    newPattern = pattern.substring(0, idx) + traceInsert + pattern.substring(idx);
+                                } else {
+                                    newPattern = pattern + " " + traceInsert + "%msg%n";
+                                }
+
+                                // 创建新的 encoder 并替换（需要停止/启动 appender）
+                                PatternLayoutEncoder newEnc = new PatternLayoutEncoder();
+                                newEnc.setContext(ctx);
+                                newEnc.setPattern(newPattern);
+                                newEnc.start();
+
+                                existing.stop();
+                                existing.setEncoder(newEnc);
+                                existing.start();
+
+                                logger.info("my-extension：已更新现有 ConsoleAppender '{}' 的 pattern，注入 TraceId", existing.getName());
+                            } else {
+                                logger.debug("my-extension：现有 ConsoleAppender '{}' 已包含 TraceId，跳过修改", existing.getName());
+                            }
+                        } else {
+                            logger.debug("my-extension：发现非 PatternLayoutEncoder 的 ConsoleAppender '{}', 跳过修改", existing.getName());
+                        }
+                    } catch (Exception ex) {
+                        logger.warn("my-extension：尝试更新现有 ConsoleAppender 失败：{}", ex.getMessage());
+                    }
+                }
+            }
+
+            // 若确实没有任何 ConsoleAppender（引用项目没有控制台输出），才添加库侧的 LIB_CONSOLE
+            if (!consoleFound) {
                 try {
                     PatternLayoutEncoder consoleEncoder = new PatternLayoutEncoder();
                     consoleEncoder.setContext(ctx);
@@ -134,12 +182,12 @@ public class LoggingAutoConfiguration {
                     console.start();
 
                     root.addAppender(console);
-                    logger.info("my-extension：已添加 LIB_CONSOLE 控制台 appender，输出包含 TraceId");
+                    logger.info("my-extension：未检测到 ConsoleAppender，已添加 LIB_CONSOLE 控制台 appender，输出包含 TraceId");
                 } catch (Exception ex) {
                     logger.warn("my-extension：添加控制台 appender 失败：{}", ex.getMessage());
                 }
             } else {
-                logger.debug("my-extension：存在 LIB_CONSOLE appender，跳过添加控制台");
+                logger.debug("my-extension：检测到现有 ConsoleAppender，已尝试注入 TraceId，未添加额外的控制台 appender");
             }
 
             // 2) 根据属性决定是否添加文件 appender（LIB_ROLLING + LIB_ASYNC）
