@@ -133,15 +133,9 @@ public class LoggingAutoConfiguration {
                             String pattern = ple.getPattern();
                             if (pattern == null) pattern = "";
                             if (!pattern.contains("%X{TraceId}")) {
-                                // 在 %logger 出现位置前插入 TraceId 标记（若无 %logger，则追加在末尾）
-                                int idx = pattern.indexOf("%logger");
-                                String traceInsert = "[TraceId:%X{TraceId}] ";
-                                String newPattern;
-                                if (idx != -1) {
-                                    newPattern = pattern.substring(0, idx) + traceInsert + pattern.substring(idx);
-                                } else {
-                                    newPattern = pattern + " " + traceInsert + "%msg%n";
-                                }
+                                // 将 TraceId 前置到 pattern 开头，确保日志行以 TraceId 开始
+                                String tracePrefix = "TraceId:%X{TraceId}  ";
+                                String newPattern = tracePrefix + pattern;
 
                                 // 创建新的 encoder 并替换（需要停止/启动 appender）
                                 PatternLayoutEncoder newEnc = new PatternLayoutEncoder();
