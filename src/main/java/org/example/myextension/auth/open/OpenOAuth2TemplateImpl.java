@@ -50,15 +50,15 @@ public class OpenOAuth2TemplateImpl extends SaOAuth2Template {
      * <p>
      * 包含所有客户端的配置信息，用于查找特定 clientId 的配置。
      */
-    private final OpenOAuth2ClientProperties clientProperties;
+    private final OpenOAuth2ClientRegistry clientRegistry;
 
     /**
      * 构造函数：通过依赖注入初始化
      *
-     * @param clientProperties OAuth2 客户端属性配置
+     * @param clientRegistry OAuth2 客户端注册中心
      */
-    public OpenOAuth2TemplateImpl(OpenOAuth2ClientProperties clientProperties) {
-        this.clientProperties = clientProperties;
+    public OpenOAuth2TemplateImpl(OpenOAuth2ClientRegistry clientRegistry) {
+        this.clientRegistry = clientRegistry;
     }
 
     /**
@@ -89,23 +89,6 @@ public class OpenOAuth2TemplateImpl extends SaOAuth2Template {
      */
     @Override
     public SaClientModel getClientModel(String clientId) {
-        // 在配置列表中查找匹配 clientId 的应用配置
-        OpenOAuth2AppConfig appConfig = clientProperties.getClients().values().stream()
-                .filter(config -> clientId.equals(config.getClientId()))
-                .findFirst()
-                .orElse(null);
-
-        if (appConfig == null) {
-            return null;
-        }
-
-        // 构造并返回 Sa-Token 内部使用的客户端模型
-        return new SaClientModel()
-                .setClientId(clientId)
-                .setClientSecret(appConfig.getClientSecret())
-                .setAllowUrl(appConfig.getAllowUrl())
-                .setContractScope(appConfig.getContractScope())
-                .setIsAutoMode(false) // 设为非自动模式
-                .setIsClient(true);   // 标识为客户端
+        return clientRegistry.getClientModel(clientId);
     }
 }

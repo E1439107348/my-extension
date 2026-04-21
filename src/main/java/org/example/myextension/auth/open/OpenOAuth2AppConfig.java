@@ -82,6 +82,41 @@ public class OpenOAuth2AppConfig {
     private String contractScope = "*";
 
     /**
+     * Access-Token 过期时间（秒）
+     * <p>
+     * 可选配置。未配置时走 Sa-Token 默认行为。
+     */
+    private Long accessTokenTimeout;
+
+    /**
+     * Refresh-Token 过期时间（秒）
+     * <p>
+     * 可选配置。未配置时走 Sa-Token 默认行为。
+     */
+    private Long refreshTokenTimeout;
+
+    /**
+     * Client-Token 过期时间（秒）
+     * <p>
+     * 可选配置。支持按客户端单独设置 client_token 的有效期。
+     */
+    private Long clientTokenTimeout;
+
+    /**
+     * 历史 Client-Token 保留时间（秒）
+     * <p>
+     * 可选配置。用于控制过去 token 的短暂可用窗口。
+     */
+    private Long pastClientTokenTimeout;
+
+    /**
+     * 是否启用刷新令牌轮换
+     * <p>
+     * 可选配置。true 表示每次刷新后签发新的 refresh_token。
+     */
+    private Boolean isNewRefresh;
+
+    /**
      * 无参构造函数
      * <p>
      * 用于 JSON 反序列化时创建实例。
