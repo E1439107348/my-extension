@@ -18,6 +18,12 @@
 - `script`：在线 Groovy 脚本执行（可配置开关）
 - `threadPool`：上下文感知线程池（MDC/Request/SecurityContext 透传）
 - `utils`：Spring/事务/Trace/分页工具
+- `redisson`：Redisson 增强操作（计数器、MapCache、Bloom、Pub/Sub）
+- `cache`：Caffeine + Redis 双缓存
+- `otel`：OpenTelemetry 链路追踪
+- `http`：HTTP Client 增强（连接池 + 超时 + Trace）
+- `feign`：Feign 增强插件（Trace/重试/错误解码）
+- `mybatis`：SQL 执行链路追踪
 
 ---
 
@@ -84,6 +90,18 @@ mvn verify
 ---
 
 ## 3. 模块明细
+
+## 3.0 新增能力总览（本次补充）
+
+### 已补充完成
+- ✔ Redisson 完整实现
+- ✔ Caffeine + Redis 双缓存
+- ✔ OpenTelemetry trace
+- ✔ HTTP Client 增强
+- ✔ Feign 增强插件
+- ✔ SQL 执行链路追踪
+
+---
 
 ## 3.1 `config`（日志自动配置）
 
@@ -392,6 +410,167 @@ pool.submit(() -> {
 
 ---
 
+## 3.12 `redisson`（完整实现）
+
+### 说明
+- 核心类：`RedissonAdvancedOperations`
+
+### 作用
+- 提供分布式计数器（`RAtomicLong`）
+- 提供 `RMapCache` 带 TTL 写读
+- 提供布隆过滤器初始化/写入/查询
+- 提供 Topic 发布能力
+- 提供 `RBucket getOrLoad` 回源能力
+
+### 如何使用
+```java
+@Autowired
+private RedissonAdvancedOperations redissonOps;
+
+long counter = redissonOps.increment("order:seq");
+redissonOps.mapPut("product:cache", "sku-1", "json-value", 300);
+boolean exists = redissonOps.bloomContains("user:bloom", "u1001");
+```
+
+### 如何配置
+- 复用现有 Redisson 配置（`spring.redis.*` 与 redisson 配置）
+
+---
+
+## 3.13 `cache`（Caffeine + Redis 双缓存）
+
+### 说明
+- 核心类：`TwoLevelCacheAutoConfiguration`、`TwoLevelCacheService`
+
+### 作用
+- L1：Caffeine 本地缓存，低延迟
+- L2：Redis 分布式缓存，跨实例共享
+- 双层回填策略：本地未命中 -> Redis -> Loader
+
+### 如何使用
+```java
+@Autowired
+private TwoLevelCacheService cacheService;
+
+UserDTO user = cacheService.get("user:1001", UserDTO.class, () -> queryUserFromDb(1001L));
+cacheService.put("user:1001", user);
+cacheService.evict("user:1001");
+```
+
+### 如何配置
+```yaml
+extension:
+  cache:
+    two-level:
+      enable: true
+      localMaximumSize: 10000
+      localExpireSeconds: 60
+      redisExpireSeconds: 300
+```
+
+---
+
+## 3.14 `otel`（OpenTelemetry Trace）
+
+### 说明
+- 核心类：`OpenTelemetryAutoConfiguration`、`OpenTelemetryTraceFilter`
+
+### 作用
+- 为 HTTP 入口创建 SERVER Span
+- 将 traceId 写入 MDC（`TraceId`）并回传响应头（默认 `X-Trace-Id`）
+- 为下游增强（HTTP/Feign/SQL）提供统一 Tracer
+
+### 如何使用
+1. 打开开关：`extension.observability.otel.enable=true`
+2. 启动后请求接口，响应头会携带 traceId
+
+### 如何配置
+```yaml
+extension:
+  observability:
+    otel:
+      enable: true
+      serviceName: my-service
+      responseHeader: X-Trace-Id
+```
+
+---
+
+## 3.15 `http`（HTTP Client 增强）
+
+### 说明
+- 核心类：`HttpClientEnhancementAutoConfiguration`、`TracingClientHttpRequestInterceptor`
+
+### 作用
+- 提供连接池 RestTemplate
+- 提供连接超时/读取超时可配置
+- OTel 开启时自动注入出站调用追踪拦截器
+
+### 如何使用
+- 开启后直接注入 `RestTemplate` 使用
+
+### 如何配置
+```yaml
+extension:
+  http:
+    client:
+      enable: true
+      connectTimeoutMs: 3000
+      readTimeoutMs: 5000
+      maxTotal: 200
+      maxPerRoute: 50
+```
+
+---
+
+## 3.16 `feign`（Feign 增强插件）
+
+### 说明
+- 核心类：`FeignEnhancementAutoConfiguration`
+
+### 作用
+- 自动透传 `X-Trace-Id`
+- 提供默认重试策略（最多 3 次）
+- 提供统一错误解码日志
+- OTel 开启时可进行发起前轻量 Span 打点
+
+### 如何使用
+- 开启 `extension.feign.enable=true`
+- 业务侧正常使用 Feign Client 即可
+
+### 如何配置
+```yaml
+extension:
+  feign:
+    enable: true
+```
+
+---
+
+## 3.17 `mybatis`（SQL 执行链路追踪）
+
+### 说明
+- 核心类：`SqlTraceMybatisInterceptor`、`MybatisSqlTraceAutoConfiguration`
+
+### 作用
+- 记录 SQL、参数、耗时
+- SQL 异常统一日志出口
+- OTel 开启时创建 db span
+
+### 如何使用
+- 开启 `extension.mybatis.sql-trace.enable=true`
+- 执行 SQL 时自动产生日志与追踪
+
+### 如何配置
+```yaml
+extension:
+  mybatis:
+    sql-trace:
+      enable: true
+```
+
+---
+
 ## 4. 配置清单（汇总）
 
 ```yaml
@@ -401,6 +580,29 @@ myextension:
       url: /Users/qy/tmp/log/application.log
 
 extension:
+  cache:
+    two-level:
+      enable: false
+      localMaximumSize: 10000
+      localExpireSeconds: 60
+      redisExpireSeconds: 300
+  observability:
+    otel:
+      enable: false
+      serviceName: my-extension-app
+      responseHeader: X-Trace-Id
+  http:
+    client:
+      enable: false
+      connectTimeoutMs: 3000
+      readTimeoutMs: 5000
+      maxTotal: 200
+      maxPerRoute: 50
+  feign:
+    enable: false
+  mybatis:
+    sql-trace:
+      enable: false
   auth:
     open:
       enable: true

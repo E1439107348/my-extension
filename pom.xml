@@ -43,7 +43,32 @@
         <sa-token.version>1.37.0</sa-token.version>
         <youzan-open-sdk-api.version>1.0.28-RELEASE</youzan-open-sdk-api.version>
         <youzan-cloud-base.version>1.1.3-RELEASE</youzan-cloud-base.version>
+        <!-- 新增：增强能力依赖版本 -->
+        <caffeine.version>2.9.3</caffeine.version>
+        <feign-core.version>11.10</feign-core.version>
+        <opentelemetry.version>1.33.0</opentelemetry.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                依赖收敛（DependencyConvergence）统一版本：
+                1) Guava 与 Caffeine 对 checker-qual 传递版本不同
+                2) Guava 与 Caffeine 对 error_prone_annotations 传递版本不同
+                通过 dependencyManagement 统一版本，避免构建失败和潜在运行时差异。
+            -->
+            <dependency>
+                <groupId>org.checkerframework</groupId>
+                <artifactId>checker-qual</artifactId>
+                <version>3.19.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.errorprone</groupId>
+                <artifactId>error_prone_annotations</artifactId>
+                <version>2.11.0</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
 
@@ -201,6 +226,43 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!-- Caffeine：本地高性能缓存，实现 Caffeine + Redis 双缓存 -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>${caffeine.version}</version>
+        </dependency>
+
+        <!-- OpenFeign Core：提供 Feign 插件扩展能力（请求拦截、重试、错误解码） -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-core</artifactId>
+            <version>${feign-core.version}</version>
+        </dependency>
+
+        <!-- OpenTelemetry API + SDK：用于统一链路追踪能力 -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <version>${opentelemetry.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+            <version>${opentelemetry.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-trace</artifactId>
+            <version>${opentelemetry.version}</version>
+        </dependency>
+
+        <!-- Apache HttpClient：增强 RestTemplate 的连接池、超时与连接复用能力 -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
         </dependency>
 
         <!-- 测试基础依赖（JUnit5 / AssertJ / Mockito / Spring Test） -->
