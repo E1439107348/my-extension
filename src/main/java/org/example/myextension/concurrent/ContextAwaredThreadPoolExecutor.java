@@ -1,4 +1,4 @@
-package org.example.myextension.threadPool;
+package org.example.myextension.concurrent;
 
 import org.slf4j.MDC;
 import org.springframework.security.core.context.SecurityContext;

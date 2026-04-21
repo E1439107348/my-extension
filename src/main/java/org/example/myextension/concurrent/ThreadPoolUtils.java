@@ -1,4 +1,4 @@
-package org.example.myextension.threadPool;
+package org.example.myextension.concurrent;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
