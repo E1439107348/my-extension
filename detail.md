@@ -46,6 +46,43 @@
 
 ---
 
+## 2.3 Maven 工程治理 
+
+### 说明
+- 本项目已按“工程治理优先”补强 Maven 构建规范，目标是降低“本地能编译、CI 失败”风险。
+
+### 作用
+- 统一构建环境约束（Maven/JDK 最低版本）
+- 统一测试执行入口（单测 / 集成测试）
+- 提前暴露依赖冲突与重复依赖声明问题
+
+### 如何使用
+1. 本地快速编译：
+```bash
+mvn -DskipTests compile
+```
+2. 执行单元测试：
+```bash
+mvn test
+```
+3. 执行完整校验（包含 failsafe verify 阶段）：
+```bash
+mvn verify
+```
+
+### 如何配置
+`pom.xml` 中已新增/完善：
+- `maven-enforcer-plugin`：
+  - `requireMavenVersion`：`[3.6.3,)`
+  - `requireJavaVersion`：`[1.8,)`
+  - `banDuplicatePomDependencyVersions`
+  - `dependencyConvergence`
+- `maven-surefire-plugin`：统一执行 `*Test.java`
+- `maven-failsafe-plugin`：预留执行 `*IT.java`
+- `spring-boot-starter-test`（test scope）：统一 JUnit5 测试栈
+
+---
+
 ## 3. 模块明细
 
 ## 3.1 `config`（日志自动配置）
@@ -139,6 +176,7 @@ extension:
 启动注册行为：
 - 启动时遍历 `clients` 配置并进行校验
 - 校验 `clientId/clientSecret` 非空、`clientId` 不重复
+- 校验超时参数（`accessTokenTimeout/refreshTokenTimeout/clientTokenTimeout/pastClientTokenTimeout`）若配置则必须 `> 0`
 - 注册后由 `OpenOAuth2TemplateImpl#getClientModel` 直接提供给 Sa-Token
 
 ---
@@ -400,3 +438,21 @@ extension:
    - 以及 `accessTokenTimeout/refreshTokenTimeout/pastClientTokenTimeout/isNewRefresh`
 2. 应用启动时自动读取并注册到 `OpenOAuth2ClientRegistry`
 3. Sa-Token 在鉴权与签发 token 时通过 `OpenOAuth2TemplateImpl` 获取已注册客户端模型
+
+---
+
+## 6. 测试与回归建议（新增）
+
+### 已补齐
+- 新增单测：`OpenOAuth2ClientRegistryTest`
+- 覆盖场景：
+  - 合法配置注册成功
+  - 返回副本防止内部状态被篡改
+  - `clientId` 重复启动失败
+  - timeout 非法（<=0）启动失败
+  - `clientSecret` 缺失启动失败
+
+### 发布前建议
+1. 执行 `mvn test`，确认治理规则与核心单测通过
+2. 在预发环境用真实配置验证 `/open/oauth2/clientToken`
+3. 检查日志中是否出现 `open oauth2 客户端注册汇总`，确认启动注册数量符合预期
